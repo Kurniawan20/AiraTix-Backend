@@ -1,0 +1,286 @@
+{
+	"info": {
+		"_postman_id": "b5e8d8b3-4f8c-4e3c-b8a3-9f9e3c1b2d3e",
+		"name": "Airatix Buyer Auth",
+		"description": "Collection for Airatix buyer authentication endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Register Buyer",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"phone\": \"+1234567890\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/public/buyer/register",
+					"host": ["{{base_url}}"],
+					"path": ["api", "public", "buyer", "register"]
+				},
+				"description": "Register a new buyer account"
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"phone\": \"+1234567890\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/public/buyer/register",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "buyer", "register"]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"message\": \"Registration successful\",\n    \"token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...\",\n    \"buyer\": {\n        \"id\": 1,\n        \"name\": \"John Doe\",\n        \"email\": \"john@example.com\",\n        \"phone\": \"+1234567890\",\n        \"email_verified_at\": null,\n        \"created_at\": \"2025-02-02T06:47:50.000000Z\",\n        \"updated_at\": \"2025-02-02T06:47:50.000000Z\"\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "Login Buyer",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"john@example.com\",\n    \"password\": \"password123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/public/buyer/login",
+					"host": ["{{base_url}}"],
+					"path": ["api", "public", "buyer", "login"]
+				},
+				"description": "Login with buyer credentials"
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"john@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/public/buyer/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "public", "buyer", "login"]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"message\": \"Login successful\",\n    \"token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...\",\n    \"buyer\": {\n        \"id\": 1,\n        \"name\": \"John Doe\",\n        \"email\": \"john@example.com\",\n        \"phone\": \"+1234567890\",\n        \"email_verified_at\": \"2025-02-02T07:00:00.000000Z\",\n        \"created_at\": \"2025-02-02T06:47:50.000000Z\",\n        \"updated_at\": \"2025-02-02T07:00:00.000000Z\"\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "Resend Verification Email",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{buyer_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/public/buyer/email/resend",
+					"host": ["{{base_url}}"],
+					"path": ["api", "public", "buyer", "email", "resend"]
+				}
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"status": "OK",
+					"code": 200,
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n    \"message\": \"Verification link sent\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Get All Buyer Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{buyer_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/public/buyer/orders",
+					"host": ["{{base_url}}"],
+					"path": ["api", "public", "buyer", "orders"]
+				}
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"status": "OK",
+					"code": 200,
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n    \"message\": \"Orders retrieved successfully\",\n    \"orders\": [\n        {\n            \"id\": 1,\n            \"short_id\": \"ABC123\",\n            \"status\": \"completed\",\n            \"total_price\": 100.00,\n            \"payment_status\": \"paid\",\n            \"payment_url\": \"https://payment.example.com/pay/ABC123\",\n            \"created_at\": \"2025-02-01T10:00:00.000000Z\",\n            \"updated_at\": \"2025-02-01T10:05:00.000000Z\",\n            \"event\": {\n                \"id\": 1,\n                \"name\": \"Summer Music Festival\",\n                \"description\": \"A fantastic summer music event\",\n                \"start_date\": \"2025-07-01T18:00:00.000000Z\",\n                \"end_date\": \"2025-07-01T23:00:00.000000Z\",\n                \"location\": \"Central Park\"\n            },\n            \"tickets\": [\n                {\n                    \"id\": 1,\n                    \"name\": \"VIP Pass\",\n                    \"description\": \"VIP access with meet & greet\",\n                    \"quantity\": 2,\n                    \"price_paid\": 45.00,\n                    \"original_price\": 50.00,\n                    \"attendees\": [\n                        {\n                            \"id\": 1,\n                            \"name\": \"John Doe\",\n                            \"email\": \"john@example.com\",\n                            \"check_in_status\": \"not_checked_in\"\n                        },\n                        {\n                            \"id\": 2,\n                            \"name\": \"Jane Doe\",\n                            \"email\": \"jane@example.com\",\n                            \"check_in_status\": \"checked_in\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}"
+				}
+			]
+		},
+		{
+			"name": "Get Single Buyer Order",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{buyer_token}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/public/buyer/orders/{{order_short_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["api", "public", "buyer", "orders", "{{order_short_id}}"]
+				}
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"status": "OK",
+					"code": 200,
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n    \"message\": \"Order retrieved successfully\",\n    \"order\": {\n        \"id\": 1,\n        \"short_id\": \"ABC123\",\n        \"status\": \"completed\",\n        \"total_price\": 100.00,\n        \"payment_status\": \"paid\",\n        \"payment_url\": \"https://payment.example.com/pay/ABC123\",\n        \"created_at\": \"2025-02-01T10:00:00.000000Z\",\n        \"updated_at\": \"2025-02-01T10:05:00.000000Z\",\n        \"event\": {\n            \"id\": 1,\n            \"name\": \"Summer Music Festival\",\n            \"description\": \"A fantastic summer music event\",\n            \"start_date\": \"2025-07-01T18:00:00.000000Z\",\n            \"end_date\": \"2025-07-01T23:00:00.000000Z\",\n            \"location\": \"Central Park\"\n        },\n        \"tickets\": [\n            {\n                \"id\": 1,\n                \"name\": \"VIP Pass\",\n                \"description\": \"VIP access with meet & greet\",\n                \"quantity\": 2,\n                \"price_paid\": 45.00,\n                \"original_price\": 50.00,\n                \"attendees\": [\n                    {\n                        \"id\": 1,\n                        \"name\": \"John Doe\",\n                        \"email\": \"john@example.com\",\n                        \"check_in_status\": \"not_checked_in\"\n                    },\n                    {\n                        \"id\": 2,\n                        \"name\": \"Jane Doe\",\n                        \"email\": \"jane@example.com\",\n                        \"check_in_status\": \"checked_in\"\n                    }\n                ]\n            }\n        ]\n    }\n}"
+				},
+				{
+					"name": "Not Found Response",
+					"status": "Not Found",
+					"code": 404,
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n    \"message\": \"Order not found\"\n}"
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"if (pm.response.code === 200 || pm.response.code === 201) {",
+					"    if (pm.response.json().token) {",
+					"        pm.environment.set('buyer_token', pm.response.json().token);",
+					"    }",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "buyer_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "order_short_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
