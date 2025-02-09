@@ -52,8 +52,8 @@ class CompleteOrderHandler
         private readonly TicketPriceRepositoryInterface    $ticketPriceRepository,
     )
     {
-        Config::$serverKey = 'SB-Mid-server-WwzFJbCMyhCLtL14jmU2uA6I';
-        Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
+        Config::$serverKey = 'Mid-server-Erqnr4Ipj1WtoT25alv8nqxK';
+        Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', true);
         Config::$isSanitized = true;
         Config::$is3ds = true;
     }
