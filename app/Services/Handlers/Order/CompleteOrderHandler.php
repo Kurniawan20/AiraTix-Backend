@@ -95,7 +95,7 @@ class CompleteOrderHandler
 
             $transactionDetails = [
                 'order_id' => $order->getShortId(),
-                'gross_amount' => $order->getTotalGross(),
+                'gross_amount' => (int) round($order->getTotalGross()),
             ];
 
                 // $customerDetails = [
@@ -115,7 +115,7 @@ class CompleteOrderHandler
             foreach($order_items as $row) {
                 $itemDetails[] = [
                     'id' => $row->id,
-                    'price' => $row->total_gross,
+                    'price' => (int) round($row->total_gross),
                     'name' => $row->item_name,
                     'quantity' => $row->quantity
                 ];
