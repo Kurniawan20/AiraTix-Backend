@@ -70,6 +70,12 @@ class CompleteOrderHandler
 
             $updatedOrder = $this->updateOrder($order, $orderDTO);
 
+            // Set reserved_until to 24 hours from now
+            $reservedUntil = Carbon::now()->addHours(24);
+
+            // Update the order with the new reserved_until value
+            DB::table('orders')->where('id', $order->getId())->update(['reserved_until' => $reservedUntil->toDateTimeString()]);
+
             $this->createAttendees($orderData->attendees, $order);
 
             if ($orderData->order->questions) {
@@ -95,7 +101,7 @@ class CompleteOrderHandler
 
             $transactionDetails = [
                 'order_id' => $order->getShortId(),
-                'gross_amount' => $order->getTotalGross(),
+                'gross_amount' => (int)$order->getTotalGross(),
             ];
 
                 // $customerDetails = [
@@ -115,7 +121,7 @@ class CompleteOrderHandler
             foreach($order_items as $row) {
                 $itemDetails[] = [
                     'id' => $row->id,
-                    'price' => $row->total_gross,
+                    'price' => (int)$row->total_gross,
                     'name' => $row->item_name,
                     'quantity' => $row->quantity
                 ];
@@ -124,7 +130,12 @@ class CompleteOrderHandler
             $params = [
                 'transaction_details' => $transactionDetails,
                 'customer_details' => $customerDetails,
-                'item_details' => $itemDetails,
+                // 'item_details' => $itemDetails,
+                'custom_expiry' => [
+                    'order_time' => now()->format('Y-m-d H:i:s P'),
+                    'expiry_duration' => 60,
+                    'unit' => 'minute',
+                ],
             ];
 
             \Log::info('Midtrans Request Parameters:', [
@@ -133,7 +144,7 @@ class CompleteOrderHandler
                 'first_name' => $params['customer_details'],
                 'email' => $params['customer_details'],
                 'phone' => $params['customer_details'],
-                'items' => $params['item_details'],
+                // 'items' => $params['item_details'],
                 'order_id' => $order->getFirstName(),
             ]);
 
