@@ -27,6 +27,7 @@ class EventTop extends Controller
                 'events.description',
                 'events.start_date',
                 'events.end_date',
+                'events.status',
                 DB::raw('ticket_prices.price::INTEGER as price'),
                 'event_settings.location_details',
                 DB::raw("event_settings.location_details->>'city' as city"),
