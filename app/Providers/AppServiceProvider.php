@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 use Stripe\StripeClient;
+use Illuminate\Support\Facades\Config;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -48,6 +49,12 @@ class AppServiceProvider extends ServiceProvider
             EventDomainObject::class => Event::class,
             OrganizerDomainObject::class => Organizer::class,
         ]);
+
+        // Set application timezone
+        date_default_timezone_set('Asia/Jakarta');
+        // Set database timezone
+        Config::set('app.timezone', 'Asia/Jakarta');
+        DB::statement("SET TIME ZONE 'Asia/Jakarta'");
     }
 
     private function bindDoctrineConnection(): void

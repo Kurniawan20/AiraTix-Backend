@@ -34,6 +34,7 @@ use HiEvents\Services\Handlers\Order\DTO\CompleteOrderOrderDTO;
 use HiEvents\Services\Handlers\Order\DTO\OrderQuestionsDTO;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Midtrans\Config;
@@ -52,10 +53,20 @@ class CompleteOrderHandler
         private readonly TicketPriceRepositoryInterface    $ticketPriceRepository,
     )
     {
-        Config::$serverKey = env('MIDTRANS_SERVER_KEY');
+        Config::$serverKey = "SB-Mid-server-WwzFJbCMyhCLtL14jmU2uA6I";
         Config::$isProduction = env('MIDTRANS_IS_PRODUCTION', false);
         Config::$isSanitized = true;
         Config::$is3ds = true;
+    }
+
+    private function logInfo(string $message, array $context = []): void
+    {
+        Log::channel('orders')->info($message, $context);
+    }
+
+    private function logError(string $message, array $context = []): void
+    {
+        Log::channel('orders')->error($message, $context);
     }
 
     /**
@@ -64,119 +75,141 @@ class CompleteOrderHandler
     public function handle(string $orderShortId, CompleteOrderDTO $orderData): OrderDomainObject
     {
         return DB::transaction(function () use ($orderData, $orderShortId) {
-            $orderDTO = $orderData->order;
+            try {
+                $this->logInfo('Starting order completion transaction', [
+                    'order_short_id' => $orderShortId,
+                    'customer_email' => $orderData->order->email,
+                    'timestamp' => now()->format('Y-m-d H:i:s'),
+                ]);
 
-            $order = $this->getOrder($orderShortId);
+                $orderDTO = $orderData->order;
+                $order = $this->getOrder($orderShortId);
 
-            $updatedOrder = $this->updateOrder($order, $orderDTO);
+                $this->logInfo('Order fetched', [
+                    'order_id' => $order->getId(),
+                    'order_status' => $order->getStatus(),
+                    'total_gross' => $order->getTotalGross(),
+                ]);
 
-            // Set reserved_until to 24 hours from now
-            $reservedUntil = Carbon::now()->addHours(24);
+                $updatedOrder = $this->updateOrder($order, $orderDTO);
 
-            // Update the order with the new reserved_until value
-            DB::table('orders')->where('id', $order->getId())->update(['reserved_until' => $reservedUntil->toDateTimeString()]);
+                $this->logInfo('Order updated', [
+                    'order_id' => $updatedOrder->getId(),
+                    'new_status' => $updatedOrder->getStatus(),
+                    'payment_status' => $updatedOrder->getPaymentStatus(),
+                ]);
 
-            $this->createAttendees($orderData->attendees, $order);
+                // Set reserved_until to 24 hours from now
+                $reservedUntil = Carbon::now()->addHours(24);
+                DB::table('orders')->where('id', $order->getId())->update(['reserved_until' => $reservedUntil->toDateTimeString()]);
 
-            if ($orderData->order->questions) {
-                $this->createOrderQuestions($orderDTO->questions, $order);
-            }
+                $this->logInfo('Reserved until updated', [
+                    'order_id' => $order->getId(),
+                    'reserved_until' => $reservedUntil->toDateTimeString(),
+                ]);
 
-            /**
-             * If there's no payment required, immediately update the ticket quantities, otherwise handle
-             * this in the PaymentIntentEventHandlerService
-             *
-             * @see PaymentIntentSucceededHandler
-             */
-            // if (!$order->isPaymentRequired()) {
-            $order_items = DB::table('order_items')->where('order_id', $order->getId())->get();
-            foreach ($order_items as $item) {
-                $this->ticketQuantityUpdateService->increaseQuantitySold(
-                    priceId: $item->ticket_price_id,
-                    adjustment: $item->quantity
-                );
-            }
+                $this->createAttendees($orderData->attendees, $order);
 
-            $order2 = DB::table('orders')->where('short_id', $orderShortId)->first();
+                $this->logInfo('Attendees created', [
+                    'order_id' => $order->getId(),
+                    'attendee_count' => $orderData->attendees->count(),
+                ]);
 
-            $transactionDetails = [
-                'order_id' => $order->getShortId(),
-                'gross_amount' => (int)$order->getTotalGross(),
-            ];
+                if ($orderData->order->questions) {
+                    $this->createOrderQuestions($orderDTO->questions, $order);
+                    $this->logInfo('Order questions created', [
+                        'order_id' => $order->getId(),
+                        'question_count' => $orderDTO->questions->count(),
+                    ]);
+                }
 
-                // $customerDetails = [
-                //     'first_name' => $order->getFirstName(),
-                //     'last_name' => $order->getLastName(),
-                //     'email' => $order->getEmail(),
-                // ];
+                $order_items = DB::table('order_items')->where('order_id', $order->getId())->get();
+                $this->logInfo('Order items fetched', [
+                    'order_id' => $order->getId(),
+                    'item_count' => $order_items->count(),
+                ]);
 
-            $customerDetails = [
-                'first_name' => $order2->first_name,
-                'last_name' => $order2->last_name,
-                'email' => $order2->email,
-            ];
+                foreach ($order_items as $item) {
+                    $this->ticketQuantityUpdateService->increaseQuantitySold(
+                        priceId: $item->ticket_price_id,
+                        adjustment: $item->quantity
+                    );
+                }
 
-            $itemDetails = [];
+                $order2 = DB::table('orders')->where('short_id', $orderShortId)->first();
 
-            foreach($order_items as $row) {
-                $itemDetails[] = [
-                    'id' => $row->id,
-                    'price' => (int)$row->total_gross,
-                    'name' => $row->item_name,
-                    'quantity' => $row->quantity
+                // Midtrans transaction details
+                $transactionDetails = [
+                    'order_id' => $order->getShortId(),
+                    'gross_amount' => (int)$order->getTotalGross(),
                 ];
-            }
 
-            $params = [
-                'transaction_details' => $transactionDetails,
-                'customer_details' => $customerDetails,
-                // 'item_details' => $itemDetails,
-                'custom_expiry' => [
-                    'order_time' => now()->format('Y-m-d H:i:s P'),
-                    'expiry_duration' => 60,
-                    'unit' => 'minute',
-                ],
-            ];
-
-            \Log::info('Midtrans Request Parameters:', [
-                'order_id' => $params['transaction_details'],
-                'gross_amount' => $params['transaction_details'],
-                'first_name' => $params['customer_details'],
-                'email' => $params['customer_details'],
-                'phone' => $params['customer_details'],
-                // 'items' => $params['item_details'],
-                'order_id' => $order->getFirstName(),
-            ]);
-
-            \Log::info('Complete Order Details', [
-                'order' => [
-                    'id' => $order->getId(),
-                    'short_id' => $order->getShortId(),
+                $customerDetails = [
                     'first_name' => $order2->first_name,
                     'last_name' => $order2->last_name,
                     'email' => $order2->email,
-                    'total_gross' => $order->getTotalGross(),
-                ]
-            ]);
+                ];
 
+                $params = [
+                    'transaction_details' => $transactionDetails,
+                    'customer_details' => $customerDetails,
+                    'custom_expiry' => [
+                        'order_time' => now()->format('Y-m-d H:i:s P'),
+                        'expiry_duration' => 60,
+                        'unit' => 'minute',
+                    ],
+                ];
 
-            try {
+                $this->logInfo('Preparing Midtrans payment', [
+                    'transaction_details' => $transactionDetails,
+                    'customer_details' => $customerDetails,
+                    'expiry' => $params['custom_expiry'],
+                ]);
 
-                $snapToken = Snap::getSnapToken($params);
-                $url = Snap::getSnapUrl($params);
-                $updatedOrder->setPaymentToken($snapToken);
-                $updatedOrder->setPaymentUrl($url);
+                try {
+                    $snapToken = Snap::getSnapToken($params);
+                    $url = Snap::getSnapUrl($params);
+                    $updatedOrder->setPaymentToken($snapToken);
+                    $updatedOrder->setPaymentUrl($url);
 
-                DB::table('orders')->where('id', $order->getId())->update(['snap_token' => $snapToken, 'payment_url' => $url]);
+                    DB::table('orders')->where('id', $order->getId())->update([
+                        'snap_token' => $snapToken,
+                        'payment_url' => $url
+                    ]);
+
+                    $this->logInfo('Midtrans payment token created', [
+                        'order_id' => $order->getId(),
+                        'snap_token' => $snapToken,
+                        'payment_url' => $url,
+                    ]);
+
+                } catch (\Exception $e) {
+                    $this->logError('Midtrans payment token creation failed', [
+                        'order_id' => $order->getId(),
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    throw new RuntimeException(__('Failed to create payment token: ') . $e->getMessage());
+                }
+
+                OrderStatusChangedEvent::dispatch($updatedOrder);
+
+                $this->logInfo('Order completion transaction successful', [
+                    'order_id' => $order->getId(),
+                    'final_status' => $updatedOrder->getStatus(),
+                    'payment_status' => $updatedOrder->getPaymentStatus(),
+                ]);
+
+                return $updatedOrder;
 
             } catch (\Exception $e) {
-                throw new RuntimeException(__('Failed to create payment token: ') . $e->getMessage());
+                $this->logError('Order completion transaction failed', [
+                    'order_short_id' => $orderShortId,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                throw $e;
             }
-            // }
-
-            OrderStatusChangedEvent::dispatch($updatedOrder);
-
-            return $updatedOrder;
         });
     }
 
