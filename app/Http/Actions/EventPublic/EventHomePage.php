@@ -15,7 +15,7 @@ class EventHomePage extends Controller
             ->leftJoin('images', function ($join) {
                 $join->on('events.id', '=', 'images.entity_id')
                     ->where('images.type', '=', 'EVENT_COVER')
-                    ->whereNotNull('images.deleted_at');
+                    ->whereNull('images.deleted_at');
             })
             ->leftJoin('organizers', 'events.organizer_id', '=', 'organizers.id')
             ->select(
@@ -36,6 +36,9 @@ class EventHomePage extends Controller
                 DB::raw("CONCAT('/events/', events.id) as link")
             )
             ->where('events.status', '=', 'LIVE')
+            ->whereNull('events.deleted_at')
+            ->where('events.end_date', '>=', now())
+            ->orderBy('events.start_date', 'asc')
             ->take(4)->get();
 
         $event->isVideo = false;
