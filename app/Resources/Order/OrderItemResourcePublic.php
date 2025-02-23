@@ -25,6 +25,7 @@ class OrderItemResourcePublic extends BaseResource
             'ticket_id' => $this->getTicketId(),
             'ticket_price_id' => $this->getTicketPriceId(),
             'item_name' => $this->getItemName(),
+            'item_description' => $this->getTicket()?->getDescription(),
             'total_service_fee' => $this->getTotalServiceFee(),
             'total_tax' => $this->getTotalTax(),
             'total_gross' => $this->getTotalGross(),
