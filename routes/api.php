@@ -57,6 +57,7 @@ use HiEvents\Http\Actions\EventPublic\EventOnline;
 use HiEvents\Http\Actions\EventPublic\EventOther;
 use HiEvents\Http\Actions\EventPublic\EventPublicList;
 use HiEvents\Http\Actions\EventPublic\EventTop;
+use HiEvents\Http\Actions\EventPublic\EventUpcoming;
 use HiEvents\Http\Actions\EventPublic\FilterPage;
 use HiEvents\Http\Actions\Events\CreateEventAction;
 use HiEvents\Http\Actions\Events\DuplicateEventAction;
@@ -131,6 +132,8 @@ use HiEvents\Http\Actions\Users\ResendInvitationAction;
 use HiEvents\Http\Actions\Users\UpdateMeAction;
 use HiEvents\Http\Actions\Users\UpdateUserAction;
 use Illuminate\Routing\Router;
+use HiEvents\Http\Actions\Public\GetEmailOrganizerAction;
+use HiEvents\Http\Actions\Public\GetOrganizerDetailAction;
 
 /** @var Router|Router $router */
 $router = app()->get('router');
@@ -160,6 +163,7 @@ $router->get('/public/event-other', EventOther::class);
 $router->get('/public/get-formats', GetFormatWithPagination::class);
 $router->get('/public/top-event', EventTop::class);
 $router->get('/public/explore', FilterPage::class);
+$router->get('/public/events/upcoming', EventUpcoming::class);
 
 $router->post('/verify-email', [VerificationEmail::class, 'verifyEmail']);
 
@@ -297,6 +301,9 @@ $router->prefix('/public')->group(
 
         // Email Organizer Route
         $router->post('/email-organizer', StoreEmailOrganizerAction::class);
+        $router->get('/email-organizers', GetEmailOrganizerAction::class)->name('email-organizers.index');
+        $router->get('/email-organizers/{uuid}', GetOrganizerDetailAction::class)
+            ->name('email-organizers.show');
 
         // Transaction Routes
         $router->get('/events/{event_id}/transactions', GetEventTransactionsAction::class);

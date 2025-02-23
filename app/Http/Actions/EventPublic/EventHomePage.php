@@ -39,7 +39,8 @@ class EventHomePage extends Controller
             ->whereNull('events.deleted_at')
             ->where('events.end_date', '>=', now())
             ->orderBy('events.start_date', 'asc')
-            ->take(4)->get();
+            // ->take(4)
+            ->get();
 
         $event->isVideo = false;
 

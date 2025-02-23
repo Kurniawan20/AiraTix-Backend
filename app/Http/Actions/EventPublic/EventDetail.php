@@ -20,7 +20,18 @@ class EventDetail extends Controller
             ->leftJoin('organizers', 'events.organizer_id', '=', 'organizers.id')
             ->select(
                 'events.*',
-                'event_settings.location_details',
+                DB::raw("CASE 
+                    WHEN event_settings.location_details IS NULL THEN NULL
+                    ELSE json_build_object(
+                        'city', event_settings.location_details->>'city',
+                        'country', event_settings.location_details->>'country',
+                        'venue_name', event_settings.location_details->>'venue_name',
+                        'address_line_1', event_settings.location_details->>'address_line_1',
+                        'address_line_2', event_settings.location_details->>'address_line_2',
+                        'state_or_region', event_settings.location_details->>'state_or_region',
+                        'zip_or_postal_code', event_settings.location_details->>'zip_or_postal_code'
+                    )::text
+                END as location_details"),
                 'event_settings.is_online_event',
                 'event_settings.order_timeout_in_minutes',
                 'event_settings.pre_checkout_message',
@@ -67,11 +78,10 @@ class EventDetail extends Controller
             abort(404, 'Event not found');
         }
 
+        // Get tickets with prices
         $tickets = DB::table('tickets')
-            ->leftJoin('ticket_prices', 'tickets.id', '=', 'ticket_prices.ticket_id')
-            ->leftJoin('ticket_taxes_and_fees', 'tickets.id', '=', 'ticket_taxes_and_fees.ticket_id')
-            ->leftJoin('taxes_and_fees', 'ticket_taxes_and_fees.tax_and_fee_id', '=', 'taxes_and_fees.id')
             ->where('tickets.event_id', '=', $id)
+            ->whereNull('tickets.deleted_at')
             ->select(
                 'tickets.id',
                 'tickets.title',
@@ -80,33 +90,125 @@ class EventDetail extends Controller
                 'tickets.sale_end_date',
                 'tickets.max_per_order',
                 'tickets.min_per_order',
-                'ticket_prices.id as ticket_prices_id',
-                'ticket_prices.price',
-                'ticket_prices.initial_quantity_available',
-                'ticket_prices.quantity_sold',
-                'taxes_and_fees.name as tax_name',
-                'taxes_and_fees.calculation_type as tax_type',
-                'taxes_and_fees.rate as tax_rate'
+                DB::raw('(
+                    SELECT json_agg(
+                        json_build_object(
+                            \'id\', tp.id,
+                            \'price\', tp.price,
+                            \'initial_quantity_available\', tp.initial_quantity_available,
+                            \'quantity_sold\', tp.quantity_sold,
+                            \'label\', tp.label,
+                            \'description\', tickets.description
+                        )
+                    )
+                    FROM ticket_prices tp
+                    WHERE tp.ticket_id = tickets.id
+                ) as prices'),
+                DB::raw('(
+                    SELECT json_agg(
+                        json_build_object(
+                            \'id\', tf.id,
+                            \'name\', tf.name,
+                            \'description\', tf.description,
+                            \'calculation_type\', tf.calculation_type,
+                            \'rate\', tf.rate,
+                            \'type\', tf.type
+                        )
+                    )
+                    FROM ticket_taxes_and_fees ttf
+                    JOIN taxes_and_fees tf ON tf.id = ttf.tax_and_fee_id
+                    WHERE ttf.ticket_id = tickets.id
+                ) as taxes_and_fees')
             )
             ->get()
             ->map(function ($ticket) {
-                $price = (float) $ticket->price;
-                $tax_rate = (float) $ticket->tax_rate;
-
-                if ($ticket->tax_type === 'PERCENTAGE') {
-                    $ticket->price_after_tax = $price + ($price * $tax_rate / 100);
-                } elseif ($ticket->tax_type === 'FIXED') {
-                    $ticket->price_after_tax = $price + $tax_rate;
-                } else {
-                    $ticket->price_after_tax = $price;
+                // Decode JSON strings
+                $ticket->prices = json_decode($ticket->prices) ?? [];
+                $ticket->taxes_and_fees = json_decode($ticket->taxes_and_fees) ?? [];
+                
+                // Remove duplicates from taxes_and_fees based on id
+                $uniqueTaxes = [];
+                $seenIds = [];
+                foreach ($ticket->taxes_and_fees as $tax) {
+                    if (!isset($seenIds[$tax->id])) {
+                        $uniqueTaxes[] = $tax;
+                        $seenIds[$tax->id] = true;
+                    }
                 }
+                $ticket->taxes_and_fees = $uniqueTaxes;
+                
+                // Calculate price after tax for each price
+                foreach ($ticket->prices as $price) {
+                    $basePrice = (float) $price->price;
+                    $priceAfterTax = $basePrice;
+                    $appliedTaxes = [];
+
+                    foreach ($ticket->taxes_and_fees as $tax) {
+                        $rate = (float) $tax->rate;
+                        $amount = 0;
+                        
+                        if ($tax->calculation_type === 'PERCENTAGE') {
+                            $amount = $basePrice * $rate / 100;
+                        } else if ($tax->calculation_type === 'FIXED') {
+                            $amount = $rate;
+                        }
+                        
+                        // Add tax details to applied taxes
+                        $appliedTaxes[] = [
+                            'id' => $tax->id,
+                            'name' => $tax->name,
+                            'description' => $tax->description,
+                            'type' => $tax->type,
+                            'calculation_type' => $tax->calculation_type,
+                            'rate' => $tax->rate,
+                            'formatted_rate' => $tax->calculation_type === 'PERCENTAGE' ? 
+                                number_format($tax->rate, 3) . '%' : 
+                                'Rp ' . number_format($tax->rate, 0, ',', '.'),
+                            'amount' => $amount
+                        ];
+
+                        $priceAfterTax += $amount;
+                    }
+
+                    $price->price_after_tax = $priceAfterTax;
+                    $price->applied_taxes = $appliedTaxes;
+                    $price->formatted_price = "Rp " . number_format($price->price, 0, ',', '.');
+                    $price->formatted_price_after_tax = "Rp " . number_format($price->price_after_tax, 0, ',', '.');
+                    // Keep both label and description
+                    $price->tier_description = $price->label ?? null;
+                }
+
+                // Calculate min and max prices for the ticket
+                $prices = collect($ticket->prices);
+                $ticket->min_price = $prices->min('price');
+                $ticket->max_price = $prices->max('price');
+                $ticket->min_price_after_tax = $prices->min('price_after_tax');
+                $ticket->max_price_after_tax = $prices->max('price_after_tax');
+                
+                // Add formatted versions
+                $ticket->formatted_min_price = "Rp " . number_format($ticket->min_price, 0, ',', '.');
+                $ticket->formatted_max_price = "Rp " . number_format($ticket->max_price, 0, ',', '.');
+                $ticket->formatted_min_price_after_tax = "Rp " . number_format($ticket->min_price_after_tax, 0, ',', '.');
+                $ticket->formatted_max_price_after_tax = "Rp " . number_format($ticket->max_price_after_tax, 0, ',', '.');
+                
+                // Add price range text
+                $ticket->price_range = $ticket->min_price === $ticket->max_price 
+                    ? $ticket->formatted_min_price 
+                    : "{$ticket->formatted_min_price} - {$ticket->formatted_max_price}";
+                    
+                $ticket->price_range_after_tax = $ticket->min_price_after_tax === $ticket->max_price_after_tax
+                    ? $ticket->formatted_min_price_after_tax
+                    : "{$ticket->formatted_min_price_after_tax} - {$ticket->formatted_max_price_after_tax}";
 
                 return $ticket;
             });
 
         $event->tags = !empty($event->tags) ? json_decode($event->tags) : [];
-        $event->location_details = !empty($event->location_details) ? json_decode($event->location_details) : [];
         $event->social_media_handles = !empty($event->social_media_handles) ? json_decode($event->social_media_handles) : [];
+
+        if (is_string($event->location_details)) {
+            $event->location_details = json_decode($event->location_details);
+        }
 
         // Extract settings into a separate object
         $settings = (object) [
@@ -142,6 +244,35 @@ class EventDetail extends Controller
         foreach (array_keys((array) $settings) as $key) {
             unset($event->$key);
         }
+
+        // Calculate event-wide price ranges
+        $allPrices = collect();
+        $allPricesAfterTax = collect();
+        
+        foreach ($tickets as $ticket) {
+            foreach ($ticket->prices as $price) {
+                $allPrices->push($price->price);
+                $allPricesAfterTax->push($price->price_after_tax);
+            }
+        }
+
+        $event->min_price = $allPrices->min();
+        $event->max_price = $allPrices->max();
+        $event->min_price_after_tax = $allPricesAfterTax->min();
+        $event->max_price_after_tax = $allPricesAfterTax->max();
+        
+        $event->formatted_min_price = "Rp " . number_format($event->min_price, 0, ',', '.');
+        $event->formatted_max_price = "Rp " . number_format($event->max_price, 0, ',', '.');
+        $event->formatted_min_price_after_tax = "Rp " . number_format($event->min_price_after_tax, 0, ',', '.');
+        $event->formatted_max_price_after_tax = "Rp " . number_format($event->max_price_after_tax, 0, ',', '.');
+        
+        $event->price_range = $event->min_price === $event->max_price 
+            ? $event->formatted_min_price 
+            : "{$event->formatted_min_price} - {$event->formatted_max_price}";
+            
+        $event->price_range_after_tax = $event->min_price_after_tax === $event->max_price_after_tax
+            ? $event->formatted_min_price_after_tax
+            : "{$event->formatted_min_price_after_tax} - {$event->formatted_max_price_after_tax}";
 
         return [
             'event' => $event,

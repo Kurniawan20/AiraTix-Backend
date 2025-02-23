@@ -6,11 +6,12 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Request;
 
-class EventOther extends Controller
+class EventUpcoming extends Controller
 {
     public function __invoke(Request $request)
     {
         $today = now();
+        $nextWeek = now()->addDays(7);
 
         $events = DB::table('events')
             ->leftJoin('event_settings', 'events.id', '=', 'event_settings.event_id')
@@ -71,18 +72,11 @@ class EventOther extends Controller
                     FROM tickets t
                     WHERE t.event_id = events.id
                     AND t.deleted_at IS NULL
-                ) as tickets_json'),
-                DB::raw('(
-                    SELECT MIN(tp.price::INTEGER)
-                    FROM tickets t
-                    JOIN ticket_prices tp ON t.id = tp.ticket_id
-                    WHERE t.event_id = events.id
-                    AND t.deleted_at IS NULL
-                ) as price')
+                ) as tickets_json')
             )
+            ->where('events.start_date', '>=', $today)
+            ->where('events.start_date', '<=', $nextWeek)
             ->where('events.status', '=', 'LIVE')
-            ->where('events.start_date', '<=', $today)
-            ->where('events.end_date', '>=', $today)
             ->groupBy(
                 'events.id',
                 'event_settings.is_online_event',
@@ -92,7 +86,6 @@ class EventOther extends Controller
                 'organizers.email'
             )
             ->orderBy('events.start_date', 'asc')
-            ->take(8)
             ->get();
 
         // Transform and calculate prices
@@ -113,11 +106,6 @@ class EventOther extends Controller
 
             $event->min_price = $prices->min();
             $event->max_price = $prices->max();
-            
-            // Ensure price field exists for backward compatibility
-            if (!isset($event->price)) {
-                $event->price = $event->min_price;
-            }
 
             // Parse location_details if it's a string
             if (is_string($event->location_details)) {
@@ -129,7 +117,11 @@ class EventOther extends Controller
 
         return response()->json([
             'events' => $events,
-            'total' => $events->count()
+            'total' => $events->count(),
+            'period' => [
+                'start' => $today->toDateString(),
+                'end' => $nextWeek->toDateString()
+            ]
         ]);
     }
 }
