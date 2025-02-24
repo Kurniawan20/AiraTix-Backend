@@ -55,6 +55,7 @@ use HiEvents\Http\Actions\EventPublic\EventDetail;
 use HiEvents\Http\Actions\EventPublic\EventHomePage;
 use HiEvents\Http\Actions\EventPublic\EventOnline;
 use HiEvents\Http\Actions\EventPublic\EventOther;
+use HiEvents\Http\Actions\EventPublic\EventPast;
 use HiEvents\Http\Actions\EventPublic\EventPublicList;
 use HiEvents\Http\Actions\EventPublic\EventTop;
 use HiEvents\Http\Actions\EventPublic\EventUpcoming;
@@ -164,6 +165,7 @@ $router->get('/public/get-formats', GetFormatWithPagination::class);
 $router->get('/public/top-event', EventTop::class);
 $router->get('/public/explore', FilterPage::class);
 $router->get('/public/events/upcoming', EventUpcoming::class);
+$router->get('/public/events-past', EventPast::class);
 
 $router->post('/verify-email', [VerificationEmail::class, 'verifyEmail']);
 
