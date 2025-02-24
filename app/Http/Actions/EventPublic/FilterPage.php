@@ -40,7 +40,7 @@ class FilterPage extends Controller
             )
             ->where('events.status', '=', 'LIVE')
             ->whereNull('events.deleted_at')
-            ->where('events.end_date', '>=', now())
+            // ->where('events.end_date', '>=', now())
             ->orderBy('events.start_date', 'asc');
 
         if (request()->topic_id) {
