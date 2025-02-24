@@ -39,8 +39,6 @@ class FilterPage extends Controller
                 DB::raw("CONCAT('/events/', events.id) as link")
             )
             ->where('events.status', '=', 'LIVE')
-            // ->whereNull('events.deleted_at')
-            // ->where('events.end_date', '>=', now())
             ->orderBy('events.start_date', 'asc');
 
         $event = $event->paginate(10);
